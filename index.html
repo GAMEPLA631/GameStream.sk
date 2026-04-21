@@ -484,7 +484,8 @@
                 } else {
                     const user = await getUser(userVal);
                     if(user && user.password === passVal) {
-                        localStorage.setItem('gs_user', userVal);
+                        // FIXED: Používame IndexedDB namiesto localStorage pre stav prihlásenia
+                        await setConfig('session_user', userVal);
                         updateUIForLoggedInUser(userVal);
                         closeModal();
                     } else {
@@ -509,8 +510,9 @@
             document.getElementById('userProfile').classList.remove('hidden');
         }
 
-        function logout() {
-            localStorage.removeItem('gs_user');
+        async function logout() {
+            // FIXED: Odhlásenie cez IndexedDB
+            await setConfig('session_user', null);
             document.getElementById('authButtons').classList.remove('hidden');
             document.getElementById('userProfile').classList.add('hidden');
         }
@@ -528,7 +530,8 @@
             await initDB();
             USER_API_KEY = await getConfig("yt_api_key");
             
-            const loggedInUser = localStorage.getItem('gs_user');
+            // FIXED: Kontrola prihlásenia cez IndexedDB pri štarte
+            const loggedInUser = await getConfig('session_user');
             if (loggedInUser) {
                 updateUIForLoggedInUser(loggedInUser);
             }

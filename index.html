@@ -48,6 +48,14 @@
         ::-webkit-scrollbar-track { background: var(--bg-dark); }
         ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+        /* YouTube-like Frame Styling */
+        .yt-frame {
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            background: #000;
+        }
     </style>
 </head>
 <body>
@@ -138,17 +146,33 @@
         </section>
     </main>
 
-    <!-- Integrated Stream Player Modal -->
-    <div id="playerModal" class="fixed inset-0 bg-black/95 hidden z-[150] flex flex-col items-center justify-center p-0 md:p-10 backdrop-blur-xl">
-        <div class="w-full max-w-6xl aspect-video relative bg-black shadow-2xl">
-            <button onclick="closePlayer()" class="absolute -top-12 right-4 md:-right-12 md:top-0 text-white hover:text-purple-500 text-4xl z-[160] transition">&times;</button>
-            <div id="playerContainer" class="w-full h-full">
-                <!-- Iframe will be injected here -->
+    <!-- Integrated Stream Player Modal (YouTube-like style) -->
+    <div id="playerModal" class="fixed inset-0 bg-black/90 hidden z-[150] flex flex-col items-center justify-center p-4 md:p-10 backdrop-blur-md">
+        <div class="w-full max-w-5xl relative">
+            <!-- Close button styled more like a modern UI element -->
+            <button onclick="closePlayer()" class="absolute -top-12 right-0 text-gray-400 hover:text-white text-3xl transition flex items-center gap-2">
+                <span class="text-sm font-bold uppercase tracking-widest hidden md:inline">Zavrieť</span>
+                <i class="fas fa-times"></i>
+            </button>
+            
+            <!-- Video Wrapper with YouTube-like aspect and rounding -->
+            <div class="yt-frame aspect-video w-full">
+                <div id="playerContainer" class="w-full h-full">
+                    <!-- Iframe injected here -->
+                </div>
             </div>
-        </div>
-        <div id="playerInfo" class="w-full max-w-6xl mt-6 px-4 hidden md:block">
-            <h2 id="playerTitle" class="text-2xl font-bold text-white mb-1">Názov streamu</h2>
-            <p id="playerChannel" class="text-purple-400 font-bold uppercase tracking-widest text-sm">Kanál</p>
+
+            <!-- Title and Info area below the video, matching YouTube layout -->
+            <div id="playerInfo" class="mt-4 px-1">
+                <h2 id="playerTitle" class="text-xl md:text-2xl font-bold text-white line-clamp-1 mb-1">Názov streamu</h2>
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold text-white">GS</div>
+                    <p id="playerChannel" class="text-gray-300 font-semibold text-sm hover:text-white cursor-pointer">Kanál</p>
+                    <span class="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase ml-2 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+                    </span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -321,17 +345,17 @@
             }
         }
 
-        // PREHRÁVAČ FUNKCIE
+        // PREHRÁVAČ FUNKCIE (YouTube Style Update)
         function playStream(videoId, title, channel) {
             const container = document.getElementById('playerContainer');
             const modal = document.getElementById('playerModal');
             
-            // Inject YouTube Embed
+            // Inject YouTube Embed with slightly better params
             container.innerHTML = `
                 <iframe 
                     width="100%" 
                     height="100%" 
-                    src="https://www.youtube.com/embed/${videoId}?autoplay=1" 
+                    src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1" 
                     frameborder="0" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                     allowfullscreen>
@@ -341,7 +365,7 @@
             document.getElementById('playerTitle').innerText = title;
             document.getElementById('playerChannel').innerText = channel;
             modal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden'; // Stop scroll
+            document.body.style.overflow = 'hidden'; 
         }
 
         function closePlayer() {

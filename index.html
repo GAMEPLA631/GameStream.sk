@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameStream Hub | Global Gaming Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #9146ff;
+            --bg-dark: #0e0e10;
+            --bg-light: #18181b;
+            --text-main: #efeff1;
+        }
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        .stream-card:hover {
+            transform: translateY(-5px);
+            transition: all 0.3s ease;
+        }
+        .glass-morphism {
+            background: rgba(24, 24, 27, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .banned-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.98);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 99999;
+            text-align: center;
+            color: white;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+    </style>
+</head>
+<body>
+
+    <!-- Anti-Cheat Overlay (Banned Screen) -->
+    <div id="banOverlay" class="banned-overlay hidden">
+        <div class="p-10 border-2 border-red-600 rounded-3xl bg-black shadow-[0_0_50px_rgba(220,38,38,0.3)]">
+            <i class="fas fa-user-shield text-red-600 text-8xl mb-6 animate-pulse"></i>
+            <h1 class="text-5xl font-black mb-4 uppercase tracking-tighter">Prístup zamietnutý</h1>
+            <p class="text-xl text-gray-400 mb-2">Váš hardvérový identifikátor bol označený systémom <span class="text-red-500 font-bold">Sentinel Anti-Cheat</span>.</p>
+            <div id="banDetails" class="bg-red-900/20 p-4 rounded-xl mb-8 inline-block border border-red-900/50">
+                <p id="banReason" class="text-sm text-red-400 font-mono italic">Detekcia: Neautorizovaná manipulácia so systémom</p>
+                <p id="banId" class="text-[10px] text-gray-500 mt-2 font-mono uppercase"></p>
+            </div>
+            <p class="text-gray-500 text-sm">Ak si myslíte, že ide o chybu, kontaktujte podporu s vaším ID.</p>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 glass-morphism px-4 md:px-6 py-3 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center gap-4">
+            <h1 class="text-xl md:text-2xl font-black text-purple-500 tracking-tighter cursor-pointer" onclick="window.location.reload()">GAMESTREAM</h1>
+            <div class="hidden sm:flex gap-4 md:gap-6 ml-4 md:ml-8 text-sm font-semibold">
+                <a href="#" onclick="showSection('home')" class="hover:text-purple-400 transition">Objavovať</a>
+                <a href="#" onclick="showSection('rules')" class="hover:text-purple-400 transition">Pravidlá</a>
+            </div>
+        </div>
+        
+        <div class="order-3 md:order-2 w-full md:flex-1 md:max-w-xl">
+            <div class="relative">
+                <input type="text" id="searchInput" placeholder="Hľadať live hry..." class="w-full bg-[#3f3f46] border-none rounded-md py-2 px-4 focus:ring-2 focus:ring-purple-500 outline-none text-sm text-white">
+                <button id="searchBtn" class="absolute right-3 top-2 text-gray-400 hover:text-white"><i class="fas fa-search"></i></button>
+            </div>
+        </div>
+
+        <div class="order-2 md:order-3 flex items-center gap-2 md:gap-3">
+            <button id="settingsTrigger" onclick="openSettings()" class="p-2 text-gray-400 hover:text-white transition" title="Nastavenia API"><i class="fas fa-cog text-xl"></i></button>
+            
+            <div id="authButtons" class="flex gap-2">
+                <button onclick="openModal('login')" class="bg-[#3f3f46] hover:bg-gray-600 px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-bold">Prihlásiť</button>
+                <button onclick="openModal('register')" class="bg-purple-600 hover:bg-purple-700 px-3 md:px-4 py-2 rounded-md text-xs md:text-sm font-bold">Registrácia</button>
+            </div>
+            
+            <div id="userProfile" class="hidden flex items-center gap-3">
+                <span id="usernameDisplay" class="font-bold text-purple-400 text-sm hidden lg:inline"></span>
+                <button onclick="logout()" class="text-xs text-gray-400 hover:text-white">Odhlásiť</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="p-4 md:p-6">
+        <!-- API Warning -->
+        <div id="apiWarning" class="hidden bg-purple-900 bg-opacity-20 border border-purple-500 border-opacity-50 p-6 rounded-xl mb-8 text-center">
+            <i class="fas fa-database text-3xl text-purple-500 mb-3"></i>
+            <h3 class="text-xl font-bold mb-2">Vyžaduje sa nastavenie API</h3>
+            <p class="text-gray-400 mb-4 max-w-lg mx-auto text-sm">Prepojte svoj YouTube kľúč s platformou cez IndexedDB.</p>
+            <button onclick="openSettings()" class="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-full font-bold transition text-sm">Otvoriť nastavenia</button>
+        </div>
+
+        <section id="homeSection">
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="sectionTitle" class="text-lg md:text-xl font-bold border-l-4 border-purple-500 pl-3">Live streamy</h2>
+                <button onclick="loadStreams(true)" class="text-xs md:text-sm text-purple-400 hover:underline"><i class="fas fa-sync-alt mr-1"></i> Obnoviť</button>
+            </div>
+
+            <!-- Streams Grid -->
+            <div id="streamsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
+
+            <div id="loader" class="hidden flex justify-center py-10">
+                <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-500"></div>
+            </div>
+
+            <div class="mt-12 flex justify-center">
+                <button id="loadMoreBtn" onclick="loadStreams(false)" class="hidden bg-purple-600 hover:bg-purple-700 px-8 py-3 rounded-full font-bold transition">Viac streamov</button>
+            </div>
+        </section>
+
+        <!-- Rules Section -->
+        <section id="rulesSection" class="hidden max-w-4xl mx-auto py-10">
+            <h2 class="text-3xl md:text-4xl font-black mb-8 text-center uppercase tracking-tighter">Pravidlá Komunity</h2>
+            <div class="grid gap-4">
+                <div class="bg-[#18181b] p-6 rounded-xl border border-gray-800">
+                    <h3 class="text-lg font-bold text-purple-400 mb-2">Sentinel Anti-Cheat (SAC)</h3>
+                    <p class="text-gray-400 text-sm">Naša platforma využíva dynamickú analýzu správania. Akékoľvek pokusy o manipuláciu s klientom alebo automatizované klikanie sú blokované v reálnom čase.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/90 hidden z-[110] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-[#18181b] w-full max-w-md p-8 rounded-2xl relative border border-purple-500/30">
+            <button onclick="closeSettings()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
+            <div class="text-center mb-6">
+                <i class="fas fa-lock text-4xl text-purple-500 mb-2"></i>
+                <h2 class="text-2xl font-bold uppercase">Zabezpečené dáta</h2>
+                <p class="text-gray-500 text-xs mt-2">API kľúč sa ukladá len vo vašej IndexedDB</p>
+            </div>
+            <div class="space-y-4">
+                <input type="password" id="userApiKey" placeholder="Zadajte YouTube API kľúč" class="w-full bg-[#0e0e10] border border-gray-700 rounded-lg p-3 outline-none focus:border-purple-500 text-white font-mono text-sm">
+                <button onclick="saveApiKey()" class="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
+                    <i class="fas fa-save"></i> Uložiť do databázy
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="fixed inset-0 bg-black/80 hidden z-[100] flex items-center justify-center p-4">
+        <div class="bg-[#18181b] w-full max-w-sm p-8 rounded-2xl relative border border-gray-800">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
+            <h2 id="modalTitle" class="text-2xl font-bold mb-6 text-center">Prihlásenie</h2>
+            <div class="space-y-4">
+                <input type="text" id="authUsername" placeholder="Meno" class="w-full bg-[#0e0e10] border border-gray-700 rounded-lg p-3 outline-none focus:border-purple-500 text-white">
+                <input type="password" id="authPassword" placeholder="Heslo" class="w-full bg-[#0e0e10] border border-gray-700 rounded-lg p-3 outline-none focus:border-purple-500 text-white">
+                <button onclick="handleAuth()" class="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-lg font-bold">Potvrdiť</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- SENTINEL ANTI-CHEAT (SAC) V2 ---
+        const Sentinel = {
+            integrityKey: Math.random().toString(36).substring(7),
+            clickHistory: [],
+            isBanned: false,
+            
+            // Základná detekcia klikania
+            trackClick: function() {
+                const now = Date.now();
+                this.clickHistory.push(now);
+                
+                // Ponechaj len posledných 20 klikov v posledných 2 sekundách
+                this.clickHistory = this.clickHistory.filter(t => now - t < 2000);
+                
+                // Heuristika 1: Rýchlosť (CPS > 15)
+                if (this.clickHistory.length > 30) {
+                    this.triggerBan("Detekcia neľudskej aktivity (CPS Limit Exceeded)");
+                }
+                
+                // Heuristika 2: Stabilita rytmu (Bot check)
+                if (this.clickHistory.length > 10) {
+                    let diffs = [];
+                    for(let i=1; i<this.clickHistory.length; i++) {
+                        diffs.push(this.clickHistory[i] - this.clickHistory[i-1]);
+                    }
+                    const avg = diffs.reduce((a,b) => a+b) / diffs.length;
+                    const variance = diffs.reduce((a,b) => a + Math.pow(b - avg, 2), 0) / diffs.length;
+                    
+                    if (variance < 5) { // Príliš stabilné klikanie (bot)
+                        this.triggerBan("Detekcia automatizovaného skriptu (Fixed Rhythm)");
+                    }
+                }
+            },
+
+            // Detekcia manipulácie s konzolou
+            checkIntegrity: function() {
+                // Monitorovanie zmeny globálnych premenných
+                const originalLoad = loadStreams.toString();
+                setInterval(() => {
+                    if (loadStreams.toString() !== originalLoad) {
+                        this.triggerBan("Manipulácia s jadrom aplikácie (Function Hooking)");
+                    }
+                }, 5000);
+            },
+
+            triggerBan: function(reason) {
+                if (this.isBanned) return;
+                this.isBanned = true;
+                const banData = {
+                    reason: reason,
+                    id: "SAC-" + Math.random().toString(36).toUpperCase().substring(2, 10),
+                    timestamp: new Date().toISOString()
+                };
+                localStorage.setItem('sentinel_ban_report', JSON.stringify(banData));
+                this.renderBan(banData);
+            },
+
+            renderBan: function(data) {
+                const overlay = document.getElementById('banOverlay');
+                document.getElementById('banReason').innerText = `Detekcia: ${data.reason}`;
+                document.getElementById('banId').innerText = `ID hlásenia: ${data.id}`;
+                overlay.classList.remove('hidden');
+                document.body.innerHTML = overlay.outerHTML; // Úplné zničenie DOMu
+            },
+
+            init: function() {
+                const savedBan = localStorage.getItem('sentinel_ban_report');
+                if (savedBan) {
+                    this.renderBan(JSON.parse(savedBan));
+                    return true;
+                }
+                
+                document.addEventListener('mousedown', () => this.trackClick());
+                this.checkIntegrity();
+                return false;
+            }
+        };
+
+        // --- GAMESTREAM CORE LOGIC ---
+        let USER_API_KEY = "";
+        let nextPageToken = "";
+        let currentQuery = "PC Gaming live stream";
+        let db;
+
+        const initDB = () => {
+            return new Promise((resolve) => {
+                const request = indexedDB.open("GameStreamStore", 1);
+                request.onupgradeneeded = (e) => {
+                    const dbInstance = e.target.result;
+                    dbInstance.createObjectStore("config", { keyPath: "id" });
+                    dbInstance.createObjectStore("users", { keyPath: "username" });
+                };
+                request.onsuccess = (e) => { db = e.target.result; resolve(); };
+            });
+        };
+
+        const getConfig = (key) => {
+            return new Promise((resolve) => {
+                const tx = db.transaction("config", "readonly");
+                const store = tx.objectStore("config");
+                const req = store.get(key);
+                req.onsuccess = () => resolve(req.result ? req.result.value : null);
+            });
+        };
+
+        const setConfig = (key, val) => {
+            return new Promise((resolve) => {
+                const tx = db.transaction("config", "readwrite");
+                tx.objectStore("config").put({ id: key, value: val });
+                tx.oncomplete = () => resolve();
+            });
+        };
+
+        async function loadStreams(reset = false) {
+            if (!USER_API_KEY) {
+                document.getElementById('apiWarning').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('apiWarning').classList.add('hidden');
+            
+            if (reset) {
+                document.getElementById('streamsGrid').innerHTML = '';
+                nextPageToken = "";
+            }
+
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('loadMoreBtn').classList.add('hidden');
+
+            try {
+                const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&videoCategoryId=20&q=${encodeURIComponent(currentQuery)}&maxResults=12&key=${USER_API_KEY}&pageToken=${nextPageToken}`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if (data.error) throw new Error(data.error.message);
+
+                nextPageToken = data.nextPageToken || "";
+                renderStreams(data.items);
+                
+                if (nextPageToken) document.getElementById('loadMoreBtn').classList.remove('hidden');
+            } catch (e) {
+                console.error(e);
+            } finally {
+                document.getElementById('loader').classList.add('hidden');
+            }
+        }
+
+        function renderStreams(items) {
+            const grid = document.getElementById('streamsGrid');
+            items.forEach(item => {
+                grid.insertAdjacentHTML('beforeend', `
+                    <div class="stream-card bg-[#18181b] rounded-xl overflow-hidden flex flex-col cursor-pointer border border-gray-800" onclick="window.open('https://youtube.com/watch?v=${item.id.videoId}', '_blank')">
+                        <img src="${item.snippet.thumbnails.high.url}" class="w-full aspect-video object-cover">
+                        <div class="p-4">
+                            <h3 class="text-sm font-bold line-clamp-2 text-white mb-2">${item.snippet.title}</h3>
+                            <p class="text-xs text-gray-500">${item.snippet.channelTitle}</p>
+                        </div>
+                    </div>
+                `);
+            });
+        }
+
+        // --- EVENT HANDLERS ---
+        async function saveApiKey() {
+            const key = document.getElementById('userApiKey').value.trim();
+            if (key) {
+                await setConfig("yt_api_key", key);
+                USER_API_KEY = key;
+                closeSettings();
+                loadStreams(true);
+            }
+        }
+
+        function openSettings() { document.getElementById('settingsModal').classList.remove('hidden'); }
+        function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); }
+        function openModal(m) { document.getElementById('authModal').classList.remove('hidden'); }
+        function closeModal() { document.getElementById('authModal').classList.add('hidden'); }
+
+        document.getElementById('searchBtn').onclick = () => {
+            const q = document.getElementById('searchInput').value.trim();
+            if (q) {
+                currentQuery = q + " gaming live";
+                loadStreams(true);
+            }
+        };
+
+        // --- INIT ---
+        window.onload = async () => {
+            if (Sentinel.init()) return; // Ak je ban, stop
+            
+            await initDB();
+            USER_API_KEY = await getConfig("yt_api_key");
+            
+            const user = localStorage.getItem('gs_user');
+            if (user) {
+                document.getElementById('usernameDisplay').innerText = user;
+                document.getElementById('authButtons').classList.add('hidden');
+                document.getElementById('userProfile').classList.remove('hidden');
+            }
+            
+            loadStreams();
+        };
+
+        // Bonus: Anti-F12 Console Spam
+        (function() {
+            let element = new Image();
+            Object.defineProperty(element, 'id', { get: function() { 
+                // Tu by sa dal pridať logger otvorenia konzoly
+            }});
+            console.log('%cSentinel SAC: Monitoring aktívny', 'color: purple; font-size: 20px; font-weight: bold;');
+        })();
+    </script>
+</body>
+</html>

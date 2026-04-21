@@ -79,7 +79,7 @@
         <div class="flex items-center gap-4">
             <h1 class="text-xl md:text-2xl font-black text-purple-500 tracking-tighter cursor-pointer" onclick="window.location.reload()">GAMESTREAM</h1>
             <div class="hidden sm:flex gap-4 md:gap-6 ml-4 md:ml-8 text-sm font-semibold">
-                <a href="#" onclick="showSection('home')" class="hover:text-purple-400 transition">Objavovať</a>
+                <a href="#" onclick="showSection('home')" class="hover:text-purple-400 transition text-purple-400">Objavovať</a>
                 <a href="#" onclick="showSection('rules')" class="hover:text-purple-400 transition">Pravidlá</a>
             </div>
         </div>
@@ -147,22 +147,27 @@
     </main>
 
     <!-- Integrated Stream Player Modal (YouTube-like style) -->
-    <div id="playerModal" class="fixed inset-0 bg-black/90 hidden z-[150] flex flex-col items-center justify-center p-4 md:p-10 backdrop-blur-md">
+    <div id="playerModal" class="fixed inset-0 bg-black/95 hidden z-[150] flex flex-col items-center justify-center p-4 md:p-10 backdrop-blur-md">
+        <!-- Explicit Mobile Close Button (Top Left) -->
+        <button onclick="closePlayer()" class="absolute top-6 right-6 md:hidden text-white bg-white/10 w-12 h-12 rounded-full flex items-center justify-center z-[160] hover:bg-white/20 transition-all border border-white/20">
+            <i class="fas fa-times text-2xl"></i>
+        </button>
+
         <div class="w-full max-w-5xl relative">
-            <!-- Close button styled more like a modern UI element -->
-            <button onclick="closePlayer()" class="absolute -top-12 right-0 text-gray-400 hover:text-white text-3xl transition flex items-center gap-2">
-                <span class="text-sm font-bold uppercase tracking-widest hidden md:inline">Zavrieť</span>
+            <!-- Desktop Close Button -->
+            <button onclick="closePlayer()" class="absolute -top-12 right-0 text-gray-400 hover:text-white text-3xl transition hidden md:flex items-center gap-2">
+                <span class="text-sm font-bold uppercase tracking-widest">Zavrieť</span>
                 <i class="fas fa-times"></i>
             </button>
             
-            <!-- Video Wrapper with YouTube-like aspect and rounding -->
-            <div class="yt-frame aspect-video w-full">
+            <!-- Video Wrapper -->
+            <div class="yt-frame aspect-video w-full bg-black ring-1 ring-white/10">
                 <div id="playerContainer" class="w-full h-full">
                     <!-- Iframe injected here -->
                 </div>
             </div>
 
-            <!-- Title and Info area below the video, matching YouTube layout -->
+            <!-- Title and Info -->
             <div id="playerInfo" class="mt-4 px-1">
                 <h2 id="playerTitle" class="text-xl md:text-2xl font-bold text-white line-clamp-1 mb-1">Názov streamu</h2>
                 <div class="flex items-center gap-3">
@@ -312,6 +317,15 @@
             });
         };
 
+        // Shuffle utility to randomize stream order (YouTube behavior)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
         async function loadStreams(reset = false) {
             if (!USER_API_KEY) {
                 document.getElementById('apiWarning').classList.remove('hidden');
@@ -328,14 +342,18 @@
             document.getElementById('loadMoreBtn').classList.add('hidden');
 
             try {
-                const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&videoCategoryId=20&q=${encodeURIComponent(currentQuery)}&maxResults=12&key=${USER_API_KEY}&pageToken=${nextPageToken}`;
+                // Fetching more results to allow for effective shuffling
+                const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&videoCategoryId=20&q=${encodeURIComponent(currentQuery)}&maxResults=20&key=${USER_API_KEY}&pageToken=${nextPageToken}`;
                 const res = await fetch(url);
                 const data = await res.json();
 
                 if (data.error) throw new Error(data.error.message);
 
                 nextPageToken = data.nextPageToken || "";
-                renderStreams(data.items);
+                
+                // Shuffle items before rendering to provide a fresh view every load/refresh
+                const shuffledItems = shuffleArray(data.items);
+                renderStreams(shuffledItems);
                 
                 if (nextPageToken) document.getElementById('loadMoreBtn').classList.remove('hidden');
             } catch (e) {
@@ -345,12 +363,10 @@
             }
         }
 
-        // PREHRÁVAČ FUNKCIE (YouTube Style Update)
         function playStream(videoId, title, channel) {
             const container = document.getElementById('playerContainer');
             const modal = document.getElementById('playerModal');
             
-            // Inject YouTube Embed with slightly better params
             container.innerHTML = `
                 <iframe 
                     width="100%" 
@@ -377,13 +393,14 @@
         function renderStreams(items) {
             const grid = document.getElementById('streamsGrid');
             items.forEach(item => {
+                if (!item.id || !item.id.videoId) return;
                 const videoId = item.id.videoId;
                 const title = item.snippet.title.replace(/'/g, "\\'");
                 const channel = item.snippet.channelTitle.replace(/'/g, "\\'");
                 
                 grid.insertAdjacentHTML('beforeend', `
                     <div class="stream-card bg-[#18181b] rounded-xl overflow-hidden flex flex-col cursor-pointer border border-gray-800" onclick="playStream('${videoId}', '${title}', '${channel}')">
-                        <img src="${item.snippet.thumbnails.high.url}" class="w-full aspect-video object-cover">
+                        <img src="${item.snippet.thumbnails.high.url}" class="w-full aspect-video object-cover" loading="lazy">
                         <div class="p-4">
                             <h3 class="text-sm font-bold line-clamp-2 text-white mb-2">${item.snippet.title}</h3>
                             <p class="text-xs text-gray-500">${item.snippet.channelTitle}</p>
@@ -393,7 +410,11 @@
             });
         }
 
-        // --- EVENT HANDLERS ---
+        function showSection(id) {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(id + 'Section').classList.remove('hidden');
+        }
+
         async function saveApiKey() {
             const key = document.getElementById('userApiKey').value.trim();
             if (key) {
@@ -417,7 +438,6 @@
             }
         };
 
-        // --- INIT ---
         window.onload = async () => {
             if (Sentinel.init()) return;
             await initDB();

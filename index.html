@@ -101,7 +101,7 @@
             
             <div id="userProfile" class="hidden flex items-center gap-3">
                 <span id="usernameDisplay" class="font-bold text-purple-400 text-sm hidden lg:inline"></span>
-                <button onclick="logout()" class="text-xs text-gray-400 hover:text-white">Odhlásiť</button>
+                <button onclick="logout()" class="text-xs text-gray-400 hover:text-white bg-red-600/20 px-2 py-1 rounded">Odhlásiť</button>
             </div>
         </div>
     </nav>
@@ -204,10 +204,11 @@
         <div class="bg-[#18181b] w-full max-w-sm p-8 rounded-2xl relative border border-gray-800">
             <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl">&times;</button>
             <h2 id="modalTitle" class="text-2xl font-bold mb-6 text-center">Prihlásenie</h2>
+            <div id="authFeedback" class="text-center mb-4 text-sm hidden"></div>
             <div class="space-y-4">
                 <input type="text" id="authUsername" placeholder="Meno" class="w-full bg-[#0e0e10] border border-gray-700 rounded-lg p-3 outline-none focus:border-purple-500 text-white">
                 <input type="password" id="authPassword" placeholder="Heslo" class="w-full bg-[#0e0e10] border border-gray-700 rounded-lg p-3 outline-none focus:border-purple-500 text-white">
-                <button onclick="handleAuth()" class="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-lg font-bold">Potvrdiť</button>
+                <button id="authSubmit" onclick="handleAuth()" class="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-lg font-bold">Potvrdiť</button>
             </div>
         </div>
     </div>
@@ -287,6 +288,7 @@
         let nextPageToken = "";
         let currentQuery = "PC Gaming live stream";
         let db;
+        let currentAuthMode = "login";
 
         const initDB = () => {
             return new Promise((resolve) => {
@@ -317,6 +319,26 @@
             });
         };
 
+        // Database user functions
+        const saveUser = (username, password) => {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction("users", "readwrite");
+                const store = tx.objectStore("users");
+                const request = store.add({ username, password });
+                request.onsuccess = () => resolve(true);
+                request.onerror = () => reject("Meno je už obsadené.");
+            });
+        };
+
+        const getUser = (username) => {
+            return new Promise((resolve) => {
+                const tx = db.transaction("users", "readonly");
+                const store = tx.objectStore("users");
+                const request = store.get(username);
+                request.onsuccess = () => resolve(request.result);
+            });
+        };
+
         // Shuffle utility to randomize stream order (YouTube behavior)
         function shuffleArray(array) {
             for (let i = array.length - 1; i > 0; i--) {
@@ -342,7 +364,6 @@
             document.getElementById('loadMoreBtn').classList.add('hidden');
 
             try {
-                // Fetching more results to allow for effective shuffling
                 const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&videoCategoryId=20&q=${encodeURIComponent(currentQuery)}&maxResults=20&key=${USER_API_KEY}&pageToken=${nextPageToken}`;
                 const res = await fetch(url);
                 const data = await res.json();
@@ -351,7 +372,6 @@
 
                 nextPageToken = data.nextPageToken || "";
                 
-                // Shuffle items before rendering to provide a fresh view every load/refresh
                 const shuffledItems = shuffleArray(data.items);
                 renderStreams(shuffledItems);
                 
@@ -427,8 +447,73 @@
 
         function openSettings() { document.getElementById('settingsModal').classList.remove('hidden'); }
         function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); }
-        function openModal(m) { document.getElementById('authModal').classList.remove('hidden'); }
-        function closeModal() { document.getElementById('authModal').classList.add('hidden'); }
+        
+        function openModal(mode) { 
+            currentAuthMode = mode;
+            const modal = document.getElementById('authModal');
+            const title = document.getElementById('modalTitle');
+            const feedback = document.getElementById('authFeedback');
+            
+            feedback.classList.add('hidden');
+            title.innerText = mode === 'login' ? 'Prihlásenie' : 'Registrácia';
+            modal.classList.remove('hidden'); 
+        }
+
+        function closeModal() { 
+            document.getElementById('authModal').classList.add('hidden'); 
+            document.getElementById('authUsername').value = "";
+            document.getElementById('authPassword').value = "";
+        }
+
+        async function handleAuth() {
+            const userVal = document.getElementById('authUsername').value.trim();
+            const passVal = document.getElementById('authPassword').value.trim();
+            const feedback = document.getElementById('authFeedback');
+            
+            if(!userVal || !passVal) {
+                showFeedback("Vyplňte všetky údaje.", "red");
+                return;
+            }
+
+            try {
+                if(currentAuthMode === 'register') {
+                    await saveUser(userVal, passVal);
+                    showFeedback("Registrácia úspešná! Teraz sa prihláste.", "green");
+                    currentAuthMode = 'login';
+                    document.getElementById('modalTitle').innerText = 'Prihlásenie';
+                } else {
+                    const user = await getUser(userVal);
+                    if(user && user.password === passVal) {
+                        localStorage.setItem('gs_user', userVal);
+                        updateUIForLoggedInUser(userVal);
+                        closeModal();
+                    } else {
+                        showFeedback("Nesprávne meno alebo heslo.", "red");
+                    }
+                }
+            } catch (err) {
+                showFeedback(err, "red");
+            }
+        }
+
+        function showFeedback(msg, color) {
+            const feedback = document.getElementById('authFeedback');
+            feedback.innerText = msg;
+            feedback.style.color = color === 'red' ? '#ef4444' : '#22c55e';
+            feedback.classList.remove('hidden');
+        }
+
+        function updateUIForLoggedInUser(username) {
+            document.getElementById('usernameDisplay').innerText = username;
+            document.getElementById('authButtons').classList.add('hidden');
+            document.getElementById('userProfile').classList.remove('hidden');
+        }
+
+        function logout() {
+            localStorage.removeItem('gs_user');
+            document.getElementById('authButtons').classList.remove('hidden');
+            document.getElementById('userProfile').classList.add('hidden');
+        }
 
         document.getElementById('searchBtn').onclick = () => {
             const q = document.getElementById('searchInput').value.trim();
@@ -443,11 +528,9 @@
             await initDB();
             USER_API_KEY = await getConfig("yt_api_key");
             
-            const user = localStorage.getItem('gs_user');
-            if (user) {
-                document.getElementById('usernameDisplay').innerText = user;
-                document.getElementById('authButtons').classList.add('hidden');
-                document.getElementById('userProfile').classList.remove('hidden');
+            const loggedInUser = localStorage.getItem('gs_user');
+            if (loggedInUser) {
+                updateUIForLoggedInUser(loggedInUser);
             }
             loadStreams();
         };
